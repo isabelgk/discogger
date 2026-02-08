@@ -8,7 +8,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-discogger = { git = "ssh://git@github.com/igk/discogger.git" }
+discogger = { git = "ssh://git@github.com/isabelgk/discogger.git" }
+```
+
+Add to your cargo config:
+```toml
+[net]
+git-fetch-with-cli = true
 ```
 
 ### Basic example
