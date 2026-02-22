@@ -21,6 +21,7 @@ struct Inner {
     http: Client,
     auth: Option<Auth>,
     rate_limiter: RateLimiter,
+    base_url: String,
 }
 
 /// A client for interacting with the Discogs API.
@@ -35,6 +36,7 @@ pub struct DiscogsClient {
 pub struct ClientBuilder {
     user_agent: Option<String>,
     auth: Option<Auth>,
+    base_url: String,
 }
 
 impl ClientBuilder {
@@ -42,7 +44,15 @@ impl ClientBuilder {
         Self {
             user_agent: None,
             auth: None,
+            base_url: BASE_URL.to_string(),
         }
+    }
+
+    /// Override the base URL. For testing only.
+    #[doc(hidden)]
+    pub fn base_url(mut self, url: impl Into<String>) -> Self {
+        self.base_url = url.into();
+        self
     }
 
     /// Set the User-Agent header (required by Discogs API).
@@ -98,6 +108,7 @@ impl ClientBuilder {
                 http,
                 auth: self.auth,
                 rate_limiter: RateLimiter::new(max_per_minute),
+                base_url: self.base_url,
             }),
         })
     }
@@ -113,7 +124,7 @@ impl DiscogsClient {
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
         self.inner.rate_limiter.acquire().await;
 
-        let url = format!("{BASE_URL}{path}");
+        let url = format!("{}{path}", self.inner.base_url);
 
         let mut builder = self.inner.http.get(&url);
 
@@ -318,4 +329,63 @@ fn pick_primary_image(images: &[Image]) -> Option<&Image> {
         .iter()
         .find(|img| img.image_type.as_deref() == Some("primary"))
         .or_else(|| images.first())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_requires_user_agent() {
+        assert!(matches!(
+            DiscogsClient::builder().build(),
+            Err(DiscogsError::Configuration(_))
+        ));
+    }
+
+    #[test]
+    fn builder_rejects_empty_user_agent() {
+        assert!(matches!(
+            DiscogsClient::builder().user_agent("").build(),
+            Err(DiscogsError::Configuration(_))
+        ));
+    }
+
+    #[test]
+    fn builder_succeeds_with_user_agent() {
+        let client = DiscogsClient::builder()
+            .user_agent("TestApp/1.0")
+            .build();
+        assert!(client.is_ok());
+    }
+
+    fn make_image(image_type: Option<&str>) -> Image {
+        Image {
+            image_type: image_type.map(String::from),
+            uri: Some("http://example.com/img.jpg".into()),
+            uri150: None,
+            resource_url: None,
+            width: None,
+            height: None,
+        }
+    }
+
+    #[test]
+    fn pick_primary_image_prefers_primary() {
+        let images = vec![make_image(Some("secondary")), make_image(Some("primary"))];
+        let picked = pick_primary_image(&images).unwrap();
+        assert_eq!(picked.image_type.as_deref(), Some("primary"));
+    }
+
+    #[test]
+    fn pick_primary_image_falls_back_to_first() {
+        let images = vec![make_image(Some("secondary")), make_image(None)];
+        let picked = pick_primary_image(&images).unwrap();
+        assert_eq!(picked.image_type.as_deref(), Some("secondary"));
+    }
+
+    #[test]
+    fn pick_primary_image_empty_returns_none() {
+        assert!(pick_primary_image(&[]).is_none());
+    }
 }

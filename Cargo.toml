@@ -5,6 +5,9 @@ edition = "2021"
 description = "A Rust client library for the Discogs database API"
 license = "MIT"
 
+[features]
+blocking = ["tokio/rt"]
+
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 tokio = { version = "1", features = ["sync", "time"] }
@@ -17,3 +20,7 @@ base64 = "0.22"
 percent-encoding = "2"
 rand = "0.9"
 bytes = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+wiremock = "0.6"

@@ -103,3 +103,64 @@ impl<T> PaginatedData<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::PaginationInfo;
+
+    fn pagination(page: u32, pages: u32) -> PaginationInfo {
+        PaginationInfo {
+            page,
+            pages,
+            per_page: 50,
+            items: pages * 50,
+        }
+    }
+
+    #[test]
+    fn has_next_when_not_last_page() {
+        let p: Paginated<()> = Paginated::new(vec![], pagination(1, 3));
+        assert!(p.has_next());
+    }
+
+    #[test]
+    fn no_next_on_last_page() {
+        let p: Paginated<()> = Paginated::new(vec![], pagination(3, 3));
+        assert!(!p.has_next());
+    }
+
+    #[test]
+    fn next_page_params_increments_page() {
+        let p: Paginated<()> = Paginated::new(vec![], pagination(2, 5));
+        let next = p.next_page_params().unwrap();
+        assert_eq!(next.page, 3);
+        assert_eq!(next.per_page, 50);
+    }
+
+    #[test]
+    fn next_page_params_none_on_last_page() {
+        let p: Paginated<()> = Paginated::new(vec![], pagination(5, 5));
+        assert!(p.next_page_params().is_none());
+    }
+
+    #[test]
+    fn total_items() {
+        let p: Paginated<()> = Paginated::new(vec![], pagination(1, 3));
+        assert_eq!(p.total_items(), 150);
+    }
+
+    #[test]
+    fn pagination_params_as_query_pairs() {
+        let params = PaginationParams::new(3, 25);
+        let pairs = params.as_query_pairs();
+        assert_eq!(pairs, vec![("page", "3".to_string()), ("per_page", "25".to_string())]);
+    }
+
+    #[test]
+    fn pagination_params_default() {
+        let params = PaginationParams::default();
+        assert_eq!(params.page, 1);
+        assert_eq!(params.per_page, 50);
+    }
+}
